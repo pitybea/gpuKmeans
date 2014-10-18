@@ -188,7 +188,7 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 
 	cudaMallocManaged(&centerStartIndex,sizeof(int)*kCenter);
 
-	cudaMallocManaged(&noChange,sizeof(bool));
+	cudaMalloc(&noChange,sizeof(bool));
 	
 	for(int i=0;i<kCenter;++i) goodCenterFlag[i]=true;
 
@@ -196,9 +196,11 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 
 	for(int i=0;i<datasize;++i) centerChangeFlag[i]=false;
 
+	cudaError_t error;
 
 	for(int iterN=0;iterN<maxIterationNumber;++iterN)
 	{
+/*
 		int remain=datasize;
 		while(remain>0)
 		{
@@ -215,10 +217,24 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 
 			remain-=tblocksize*threadsize;
 		}
-		printf("belongings ok\n");
+		//printf("belongings ok\n");
 
+		error = cudaGetLastError();
+		if(error != cudaSuccess)
+		{
+		// print the CUDA error message and exit
+			printf("belong free CUDA error: %s\n", cudaGetErrorString(error));
+		// exit(-1);
+		}
 		updateCorresponds<<<1,1>>>(labels,datasize,kCenter,corresponding,centerChangeFlag,centerStartIndex,centerCount,curCount,goodCenterFlag,noChange);
-		/*
+
+		error = cudaGetLastError();
+		if(error != cudaSuccess)
+		{
+		// print the CUDA error message and exit
+			printf("res free CUDA error: %s\n", cudaGetErrorString(error));
+		// exit(-1);
+		}
 		remain=kCenter;
 
 		while(remain>0)
@@ -233,17 +249,46 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 			updateCenters4<<<tblocksize,threadsize>>>(kCenter-remain,dataset,datasize,dimension,centers,kCenter,corresponding,centerStartIndex,centerCount);
 			remain-=tblocksize*threadsize;
 		}
-		*/
-		printf("center ok\n");
+
+		//printf("center ok\n");
 		
+		error = cudaGetLastError();
+		if(error != cudaSuccess)
+		{
+		// print the CUDA error message and exit
+			printf("center free CUDA error: %s\n", cudaGetErrorString(error));
+		// exit(-1);
+		}
+
 		printf("finished iteration NO. %d\n",iterN);
 
 		bool hnochange;
 		cudaMemcpy(&hnochange,noChange,sizeof(bool),cudaMemcpyDeviceToHost);
+
+		error = cudaGetLastError();
+		if(error != cudaSuccess)
+		{
+		// print the CUDA error message and exit
+			printf("memcopy free CUDA error: %s\n", cudaGetErrorString(error));
+		// exit(-1);
+		}
 		if(hnochange)
 			break;
-
+*/
 	}
+
+
+
+	cudaError_t cudaStatus;
+
+	error = cudaGetLastError();
+	if(error != cudaSuccess)
+	{
+	// print the CUDA error message and exit
+		printf("before free CUDA error: %s\n", cudaGetErrorString(error));
+	// exit(-1);
+	}
+
 
 	cudaFree(noChange);
 	cudaFree(goodCenterFlag);
@@ -255,7 +300,23 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 	cudaFree(curCount);
 	cudaFree(centerChangeFlag);
 	cudaFree(dataset);
+	error = cudaGetLastError();
+	if(error != cudaSuccess)
+	{
+	// print the CUDA error message and exit
+		printf("before CUDA error: %s\n", cudaGetErrorString(error));
+	// exit(-1);
+	}
+
 	cudaDeviceSynchronize();
+	error = cudaGetLastError();
+	if(error != cudaSuccess)
+	{
+	// print the CUDA error message and exit
+		printf("CUDA error: %s\n", cudaGetErrorString(error));
+	// exit(-1);
+	}
+
 
 }
 
@@ -279,7 +340,7 @@ int main()
 
 	fscanf(fp,"%d %d\n",&size,&dimension);
 
-	//size=300000;
+	size=300000;
 
 	cudaMallocManaged(&dataset,sizeof(double)*size*dimension);
 	printf("%d %d\n",size,dimension);
@@ -310,7 +371,7 @@ int main()
 	for(int i=0;i<size;++i)
 		labels[i]=0;
 
-	kmeans4(dataset,size,dimension,centers,labels,k,1,prop.maxThreadsPerBlock);
+	kmeans4(dataset,size,dimension,centers,labels,k,12,prop.maxThreadsPerBlock);
 
 	cout<<labels[0]<<" "<<endl;
 	//FILE* fp;
