@@ -6,6 +6,8 @@
 //#include <unistd.h>
 #include <vector>
 #include <iostream>
+#include <Windows.h>
+#include <direct.h>
 using namespace std;
 
 #ifndef __CUDACC__  
@@ -264,8 +266,8 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 
 		printf("finished iteration NO. %d\n",iterN);
 
-		bool hnochange;
-		cudaMemcpy(&hnochange,noChange,sizeof(bool),cudaMemcpyDeviceToHost);
+		//bool hnochange;
+		//cudaMemcpy(&hnochange,noChange,sizeof(bool),cudaMemcpyDeviceToHost);
 
 		error = cudaGetLastError();
 		if(error != cudaSuccess)
@@ -274,8 +276,8 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 			printf("memcopy free CUDA error: %s\n", cudaGetErrorString(error));
 		// exit(-1);
 		}
-		if(hnochange)
-			break;
+//		if(hnochange)
+	//		break;
 
 	}
 
@@ -325,18 +327,19 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 
 
 
-int tmain()
+int main()
 {
-	//chdir("/home/pitybea/");
+	_chdir("D:\\DATA\\Fujitsu\\images\\training\\");
 
 	cudaDeviceProp prop;
 
+	cudaSetDevice(1);
 	cudaGetDeviceProperties(&prop,0);
 	cout<<prop.maxThreadsPerBlock<<endl;
 
 
 	double* dataset;
-	FILE* fp=fopen("fea.txt","r");
+	FILE* fp=fopen("task09_features.txt","r");
 
 	int size,dimension;
 
@@ -375,7 +378,7 @@ int tmain()
 
 	kmeans4(dataset,size,dimension,centers,labels,k,12,prop.maxThreadsPerBlock);
 
-	cout<<labels[0]<<" "<<endl;
+	//cout<<labels[0]<<" "<<endl;
 	//FILE* fp;
 	fp=fopen("labels.txt","w");
 	fprintf(fp,"%d\n",size);
@@ -593,7 +596,7 @@ void kmeans5(double* hdataset,int datasize,int dimension,double* hcenters,int* h
 
 }
 
-int main()
+int tmain()
 {
 	//chdir("/home/pitybea/");
 
