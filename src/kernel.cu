@@ -3,7 +3,7 @@
 #include "device_launch_parameters.h"
 
 #include <stdio.h>
-#include <unistd.h>
+//#include <unistd.h>
 #include <vector>
 #include <iostream>
 using namespace std;
@@ -17,6 +17,7 @@ __device__ int minIndex(double* data,double* centers,bool* centerflags,int kCent
 {
 	int result;
 	int firstindex=0;
+
 	while(firstindex<kCenter && (! centerflags[ firstindex]))
 		++firstindex;
 
@@ -122,8 +123,8 @@ __global__ void updateCorresponds(int* labels,int datasize,int kCenter,int* corr
 	for (int i = 0; i < datasize; i++)
 	{
 		int tlabel=labels[i];
-		int ind=centerStartIndex[tlabel] + curCount[tlabel];
-		correspondings[ind]=i;
+		//int ind=;
+		correspondings[centerStartIndex[tlabel] + curCount[tlabel]]=i;
 		++curCount[tlabel];
 	}
 
@@ -200,12 +201,12 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 
 	for(int iterN=0;iterN<maxIterationNumber;++iterN)
 	{
-/*
+
 		int remain=datasize;
 		while(remain>0)
 		{
 			int tblocksize=blocksize;
-			if(blocksize*threadsize>remain)
+			if(blocksize*threadsize>=remain)
 			{
 				tblocksize=remain/threadsize+(remain%threadsize==0?0:1);
 			}
@@ -222,9 +223,9 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 		error = cudaGetLastError();
 		if(error != cudaSuccess)
 		{
-		// print the CUDA error message and exit
-			printf("belong free CUDA error: %s\n", cudaGetErrorString(error));
-		// exit(-1);
+
+			printf("belong CUDA error: %s\n", cudaGetErrorString(error));
+
 		}
 		updateCorresponds<<<1,1>>>(labels,datasize,kCenter,corresponding,centerChangeFlag,centerStartIndex,centerCount,curCount,goodCenterFlag,noChange);
 
@@ -232,7 +233,7 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 		if(error != cudaSuccess)
 		{
 		// print the CUDA error message and exit
-			printf("res free CUDA error: %s\n", cudaGetErrorString(error));
+			printf("corresponding  CUDA error: %s\n", cudaGetErrorString(error));
 		// exit(-1);
 		}
 		remain=kCenter;
@@ -256,7 +257,7 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 		if(error != cudaSuccess)
 		{
 		// print the CUDA error message and exit
-			printf("center free CUDA error: %s\n", cudaGetErrorString(error));
+			printf("center update CUDA error: %s\n", cudaGetErrorString(error));
 		// exit(-1);
 		}
 
@@ -274,7 +275,7 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 		}
 		if(hnochange)
 			break;
-*/
+
 	}
 
 
@@ -325,7 +326,7 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 
 int main()
 {
-	chdir("/home/pitybea/");
+	//chdir("/home/pitybea/");
 
 	cudaDeviceProp prop;
 
