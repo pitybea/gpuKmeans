@@ -76,6 +76,7 @@ __global__ void updatebelonging4(int index,double* dataset,int datasize,int dime
 	int tlabel;
 	if(j<datasize)
 	{
+		CenterChangeFlag[j]=false;
 		tlabel=minIndex(dataset+j*dimension, centers,goodCenterFlag,kCenter,dimension);
 		if(tlabel!=labels[j])
 			CenterChangeFlag[j]=true;
@@ -324,7 +325,7 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 
 
 
-int main()
+int tmain()
 {
 	//chdir("/home/pitybea/");
 
@@ -405,5 +406,280 @@ int main()
 	return 0;
 }
 
+void kmeans5(double* hdataset,int datasize,int dimension,double* hcenters,int* hlabels,int kCenter,int maxIterationNumber,int threadsize,int blocksize=65535)
+{
+
+	vector<int> initialCenterIndex=shuffledOrder(datasize,kCenter);
+
+	for(int i=0;i<kCenter;++i)
+		for(int j=0;j<dimension;++j)
+			hcenters[i*dimension+j]=hdataset[initialCenterIndex[i]*dimension+j];
+
+	memset(hlabels,0,sizeof(int)*datasize);
+
+	bool* hgoodCenterFlag=NULL;
+	int* centerCount=NULL;
+	int* curCount=NULL;
+	bool* centerChangeFlag=NULL;
+	int* corresponding=NULL;
+	int* centerStartIndex=NULL;
+	bool* noChange=NULL;
+	
+	double* dataset=NULL;
+	double* centers=NULL;
+	int* labels=NULL;
+
+	cudaMalloc(&dataset,sizeof(double)*datasize*dimension);
+	cudaMemcpy(dataset,hdataset,sizeof(double)*datasize*dimension,cudaMemcpyHostToDevice);
+	cudaMalloc(&centers,sizeof(double)*kCenter*dimension);
+	cudaMemcpy(centers,hcenters,sizeof(double)*kCenter*dimension,cudaMemcpyHostToDevice);
+	cudaMalloc(&labels,sizeof(int)*datasize);
+	cudaMemcpy(labels,hlabels,sizeof(int)*datasize,cudaMemcpyHostToDevice);
+
+	hgoodCenterFlag=new bool[kCenter];
+	for(int i=0;i<kCenter;++i) hgoodCenterFlag[i]=true;
+
+	bool* goodCenterFlag;
+	cudaMalloc(&goodCenterFlag,sizeof(bool)*kCenter);
+	cudaMemcpy(goodCenterFlag,hgoodCenterFlag,sizeof(bool)*kCenter,cudaMemcpyHostToDevice);
+	delete[] hgoodCenterFlag;
+
+	cudaMalloc(&centerCount,sizeof(int)*kCenter);
+	cudaMalloc(&curCount,sizeof(int)*kCenter);
+	cudaMalloc(&centerChangeFlag,sizeof(bool)*datasize);
+	cudaMalloc(&corresponding,sizeof(bool)*datasize);
+	cudaMalloc(&centerStartIndex,sizeof(int)*kCenter);
+	cudaMalloc(&noChange,sizeof(bool));
+	
+	
+
+	//for(int i=0;i<kCenter;++i) centerCount[i]=0;
+
+	//for(int i=0;i<datasize;++i) centerChangeFlag[i]=false;
+
+	cudaError_t error;
+
+	for(int iterN=0;iterN<maxIterationNumber;++iterN)
+	{
+
+		int remain=datasize;
+		while(remain>0)
+		{
+			int tblocksize=blocksize;
+			if(blocksize*threadsize>=remain)
+			{
+				tblocksize=remain/threadsize+(remain%threadsize==0?0:1);
+			}
+
+			updatebelonging4<<<tblocksize,threadsize>>>(datasize-remain,dataset,datasize,
+				dimension,centers,labels,
+				kCenter,goodCenterFlag,
+				centerChangeFlag);
+
+			remain-=tblocksize*threadsize;
+		}
+		//printf("belongings ok\n");
+
+		error = cudaGetLastError();
+		if(error != cudaSuccess)
+		{
+
+			printf("belong CUDA error: %s\n", cudaGetErrorString(error));
+
+		}
+		updateCorresponds<<<1,1>>>(labels,datasize,
+			kCenter,corresponding,
+			centerChangeFlag,centerStartIndex,
+			centerCount,curCount,
+			goodCenterFlag,noChange);
+
+		error = cudaGetLastError();
+		if(error != cudaSuccess)
+		{
+		// print the CUDA error message and exit
+			printf("corresponding  CUDA error: %s\n", cudaGetErrorString(error));
+		// exit(-1);
+		}
+		remain=kCenter;
+
+		while(remain>0)
+		{
+			//printf("%d ",i);
+			int tblocksize=blocksize;
+			if(blocksize*threadsize>remain)
+			{
+				tblocksize=remain/threadsize+(remain%threadsize==0?0:1);
+			}
+
+			updateCenters4<<<tblocksize,threadsize>>>(kCenter-remain,dataset,datasize,dimension,centers,kCenter,corresponding,centerStartIndex,centerCount);
+			remain-=tblocksize*threadsize;
+		}
+
+		//printf("center ok\n");
+		
+		error = cudaGetLastError();
+		if(error != cudaSuccess)
+		{
+		// print the CUDA error message and exit
+			printf("center update CUDA error: %s\n", cudaGetErrorString(error));
+		// exit(-1);
+		}
+
+		printf("finished iteration NO. %d\n",iterN);
+
+		bool hnochange;
+		cudaMemcpy(&hnochange,noChange,sizeof(bool),cudaMemcpyDeviceToHost);
+
+		error = cudaGetLastError();
+		if(error != cudaSuccess)
+		{
+		// print the CUDA error message and exit
+			printf("memcopy free CUDA error: %s\n", cudaGetErrorString(error));
+		// exit(-1);
+		}
+		if(hnochange)
+			break;
+
+	}
+
+
+
+	cudaError_t cudaStatus;
+
+	error = cudaGetLastError();
+	if(error != cudaSuccess)
+	{
+	// print the CUDA error message and exit
+		printf("before free CUDA error: %s\n", cudaGetErrorString(error));
+	// exit(-1);
+	}
+
+	cudaMemcpy(hlabels,labels,sizeof(int)*datasize,cudaMemcpyHostToDevice);
+	cudaMemcpy(hcenters,centers,sizeof(double)*kCenter*dimension,cudaMemcpyHostToDevice);
+
+	cudaDeviceSynchronize();
+
+	cudaFree(noChange);
+	cudaFree(goodCenterFlag);
+
+	cudaFree(corresponding);
+	cudaFree(centerStartIndex);
+
+	cudaFree(centerCount);
+	cudaFree(curCount);
+	cudaFree(centerChangeFlag);
+	cudaFree(centers);
+	cudaFree(labels);
+
+	cudaFree(dataset);
+
+	error = cudaGetLastError();
+	if(error != cudaSuccess)
+	{
+	// print the CUDA error message and exit
+		printf("before CUDA error: %s\n", cudaGetErrorString(error));
+	// exit(-1);
+	}
+
+	cudaDeviceSynchronize();
+	error = cudaGetLastError();
+	if(error != cudaSuccess)
+	{
+	// print the CUDA error message and exit
+		printf("CUDA error: %s\n", cudaGetErrorString(error));
+	// exit(-1);
+	}
+
+
+}
+
+int main()
+{
+	//chdir("/home/pitybea/");
+
+	cudaDeviceProp prop;
+
+	cudaGetDeviceProperties(&prop,0);
+	cout<<prop.maxThreadsPerBlock<<endl;
+	cudaSetDevice(0);
+
+	double* dataset;
+	FILE* fp=fopen("fea.txt","r");
+
+	int size,dimension;
+
+	fscanf(fp,"%d %d\n",&size,&dimension);
+
+	//size=300000;
+
+	//cudaMallocManaged(&dataset,sizeof(double)*size*dimension);
+	dataset=new double[size*dimension];
+
+	printf("%d %d\n",size,dimension);
+
+	for (int i=0;i<size;i++)
+	{
+		if(i%10000==0) printf("%d\t",i);
+		for (int j=0;j<dimension;j++)
+		{
+			fscanf(fp,"%lf ",&dataset[i*dimension+j]);
+		}
+		fscanf(fp,"\n");
+	}
+
+	fclose(fp);
+
+
+
+	int k=size/1000;
+	double* centers;
+	int* labels;
+
+	centers=new double[k*dimension];
+	labels=new int[size];
+	//cudaMallocManaged(&centers,sizeof(double)*k*dimension);
+	//cudaMallocManaged(&labels,sizeof(int)*size);
+
+	for(int i=0;i<k*dimension;++i)
+		centers[i]=0;
+	for(int i=0;i<size;++i)
+		labels[i]=0;
+
+	kmeans5(dataset,size,dimension,centers,labels,k,12,prop.maxThreadsPerBlock);
+
+	cout<<labels[0]<<" "<<endl;
+	//FILE* fp;
+	fp=fopen("labels.txt","w");
+	fprintf(fp,"%d\n",size);
+	for(int i=0;i<size;i++)
+	{
+		if(i%1000==0)
+		cout<<labels[i]<<" ";
+		fprintf(fp,"%d\n",labels[i]);
+	}
+
+	fclose(fp);
+	/*
+	fp=fopen("centers.txt","w");
+	fprintf(fp,"%d %d\n",k,dimension);
+	for(int i=0;i<k;i++)
+	{
+		for(int j=0;j<dimension;j++)
+			fprintf(fp,"%lf ",centers[i*dimension+j]);
+
+		fprintf(fp,"\n");
+	}
+	fclose(fp);
+	 */
+//	cudaFree(labels);
+//	cudaFree(centers);
+
+	delete[] labels;
+	delete[] dataset;
+	delete[] centers;
+
+	cudaDeviceReset();
+	return 0;
+}
 
 
