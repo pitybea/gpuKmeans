@@ -102,25 +102,7 @@ int helloworld()
     return 0;
 }
 
-vector<int> shuffledOrder(int n,int m)
-{
-	//assert(n>=m);
-	vector<int> result(m);
-	vector<int> index(n);
-	for(int i=0;i<n;++i)
-	{
-		index[i]=i;
-	}
 
-	for(int i=0;i<m;++i)
-	{
-		int tem=rand()%(n-i);
-		result[i]=index[tem];
-		index[tem]=index[n-i-1];
-
-	}
-	return result;
-}
 
 
 __global__ void updatebelonging(int index,double* dataset,int datasize,int dimension,double* centers,int* labels,int kCenter,bool* goodCenterFlag,int* paraClusterCount,double* paraCenters,bool* paraCenterChangeFlag)

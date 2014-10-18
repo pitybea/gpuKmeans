@@ -159,16 +159,13 @@ __global__ void updateCenters4(int ind,double* dataset,int datasize,int dimensio
 
 void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* labels,int kCenter,int maxIterationNumber,int threadsize,int blocksize=65535)
 {
-//	int threadsize=256;
-//	int blocksize=256;
+
 	vector<int> initialCenterIndex=shuffledOrder(datasize,kCenter);
 
 	for(int i=0;i<kCenter;++i)
 		for(int j=0;j<dimension;++j)
 			centers[i*dimension+j]=dataset[initialCenterIndex[i]*dimension+j];
 
-
-	int parallelNumber=threadsize*blocksize;
 
 	bool* goodCenterFlag;
 	int* centerCount;
@@ -179,7 +176,7 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 
 	bool* noChange;
 	
-	cudaError_t cudaStatus;
+
 	cudaMallocManaged(&goodCenterFlag,sizeof(bool)*kCenter);
 
 	cudaMallocManaged(&centerCount,sizeof(int)*kCenter);
@@ -205,7 +202,6 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 		int remain=datasize;
 		while(remain>0)
 		{
-			//printf("%d ",i);
 			int tblocksize=blocksize;
 			if(blocksize*threadsize>remain)
 			{
@@ -222,7 +218,7 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 		printf("belongings ok\n");
 
 		updateCorresponds<<<1,1>>>(labels,datasize,kCenter,corresponding,centerChangeFlag,centerStartIndex,centerCount,curCount,goodCenterFlag,noChange);
-
+		/*
 		remain=kCenter;
 
 		while(remain>0)
@@ -237,7 +233,7 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 			updateCenters4<<<tblocksize,threadsize>>>(kCenter-remain,dataset,datasize,dimension,centers,kCenter,corresponding,centerStartIndex,centerCount);
 			remain-=tblocksize*threadsize;
 		}
-
+		*/
 		printf("center ok\n");
 		
 		printf("finished iteration NO. %d\n",iterN);
@@ -258,9 +254,9 @@ void kmeans4(double* dataset,int datasize,int dimension,double* centers,int* lab
 	cudaFree(centerCount);
 	cudaFree(curCount);
 	cudaFree(centerChangeFlag);
-
-
+	cudaFree(dataset);
 	cudaDeviceSynchronize();
+
 }
 
 
@@ -283,12 +279,14 @@ int main()
 
 	fscanf(fp,"%d %d\n",&size,&dimension);
 
+	//size=300000;
+
 	cudaMallocManaged(&dataset,sizeof(double)*size*dimension);
 	printf("%d %d\n",size,dimension);
 
 	for (int i=0;i<size;i++)
 	{
-		if(i%100==0) printf("%d\t",i);
+		if(i%10000==0) printf("%d\t",i);
 		for (int j=0;j<dimension;j++)
 		{
 			fscanf(fp,"%lf ",&dataset[i*dimension+j]);
@@ -298,7 +296,7 @@ int main()
 
 	fclose(fp);
 
-	printf("%lf",dataset[size*dimension-1]);
+
 
 	int k=size/1000;
 	double* centers;
@@ -312,11 +310,35 @@ int main()
 	for(int i=0;i<size;++i)
 		labels[i]=0;
 
-	kmeans4(dataset,size,dimension,centers,labels,k,2000,prop.maxThreadsPerBlock);
+	kmeans4(dataset,size,dimension,centers,labels,k,1,prop.maxThreadsPerBlock);
 
+	cout<<labels[0]<<" "<<endl;
+	//FILE* fp;
+	fp=fopen("labels.txt","w");
+	fprintf(fp,"%d\n",size);
+	for(int i=0;i<size;i++)
+	{
+		if(i%1000==0)
+		cout<<labels[i]<<" ";
+		fprintf(fp,"%d\n",labels[i]);
+	}
+
+	fclose(fp);
+	/*
+	fp=fopen("centers.txt","w");
+	fprintf(fp,"%d %d\n",k,dimension);
+	for(int i=0;i<k;i++)
+	{
+		for(int j=0;j<dimension;j++)
+			fprintf(fp,"%lf ",centers[i*dimension+j]);
+
+		fprintf(fp,"\n");
+	}
+	fclose(fp);
+	 */
 	cudaFree(labels);
 	cudaFree(centers);
-	cudaFree(dataset);
+
 	cudaDeviceReset();
 	return 0;
 }
